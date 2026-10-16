@@ -1,0 +1,1559 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <title>KickBall - Móvil</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; -webkit-tap-highlight-color: transparent; }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #0d1b0d;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      color: #eee;
+      user-select: none;
+      -webkit-user-select: none;
+      position: fixed;
+      inset: 0;
+    }
+    #gameCanvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      background: #1a3a1a;
+    }
+    /* HUD superior */
+    #hud {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 20;
+      padding: env(safe-area-inset-top, 8px) 12px 6px;
+      background: linear-gradient(to bottom, rgba(0,0,0,0.75), transparent);
+      pointer-events: none;
+    }
+    .scoreboard {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 18px;
+      font-size: 1.5rem;
+      font-weight: 800;
+      letter-spacing: 1px;
+    }
+    .score-red { color: #ff4757; text-shadow: 0 0 8px rgba(255,71,87,0.5); }
+    .score-blue { color: #2e86de; text-shadow: 0 0 8px rgba(46,134,222,0.5); }
+    .vs { color: #aaa; font-size: 0.9rem; }
+    #status {
+      text-align: center;
+      font-size: 0.95rem;
+      color: #ffeaa7;
+      margin-top: 4px;
+      min-height: 22px;
+      text-shadow: 0 1px 3px #000;
+    }
+    /* Barras de stamina y potencia */
+    #bars {
+      position: fixed;
+      top: calc(env(safe-area-inset-top, 4px) + 58px);
+      right: 12px;
+      width: 156px;
+      z-index: 20;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      pointer-events: none;
+      opacity: 0.9;
+    }
+    .bar-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .bar-label {
+      font-size: 0.58rem;
+      width: 39px;
+      color: #ccc;
+      text-shadow: 0 1px 2px #000;
+    }
+    .bar-bg {
+      flex: 1;
+      height: 6px;
+      background: rgba(0,0,0,0.55);
+      border-radius: 5px;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,0.2);
+    }
+    .bar-fill {
+      height: 100%;
+      width: 100%;
+      border-radius: 4px;
+      transition: width 0.08s linear;
+    }
+    #staminaFill { background: linear-gradient(90deg, #2ecc71, #27ae60); }
+    #dribbleFill { background: linear-gradient(90deg, #f1c40f, #e67e22); width: 0%; }
+    #shootFill   { background: linear-gradient(90deg, #e74c3c, #c0392b); width: 0%; }
+
+    /* Controles táctiles */
+    #controls {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 210px;
+      z-index: 30;
+      pointer-events: none;
+      padding-bottom: env(safe-area-inset-bottom, 8px);
+    }
+    /* Joystick */
+    #joystickZone {
+      position: absolute;
+      left: 12px;
+      bottom: 16px;
+      width: 140px;
+      height: 140px;
+      pointer-events: auto;
+    }
+    #joystickBase {
+      width: 140px;
+      height: 140px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.12);
+      border: 2px solid rgba(255,255,255,0.3);
+      position: relative;
+    }
+    #joystickKnob {
+      width: 58px;
+      height: 58px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.55);
+      border: 2px solid rgba(255,255,255,0.8);
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      box-shadow: 0 2px 10px rgba(0,0,0,0.4);
+      transition: background 0.1s;
+    }
+    #joystickKnob.active {
+      background: rgba(255,255,255,0.85);
+    }
+    /* Botones de acción */
+    .action-btn {
+      position: absolute;
+      width: 78px;
+      height: 78px;
+      border-radius: 50%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 700;
+      color: #fff;
+      pointer-events: auto;
+      border: 3px solid rgba(255,255,255,0.45);
+      box-shadow: 0 4px 14px rgba(0,0,0,0.35);
+      transition: transform 0.08s, background 0.08s;
+    }
+    .action-btn.pressed {
+      transform: scale(0.9);
+    }
+    #dribbleBtn {
+      right: 110px;
+      bottom: 28px;
+      background: rgba(241, 196, 15, 0.8);
+    }
+    #dribbleBtn.pressed { background: rgba(241, 196, 15, 1); }
+    #shootBtn {
+      right: 18px;
+      bottom: 28px;
+      background: rgba(231, 76, 60, 0.85);
+    }
+    #shootBtn.pressed { background: rgba(231, 76, 60, 1); }
+    #runBtn {
+      position: absolute;
+      right: 202px;
+      bottom: 28px;
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: rgba(46, 204, 113, 0.82);
+      border: 3px solid rgba(255,255,255,0.45);
+      color: white;
+      font-size: 11px;
+      font-weight: 800;
+      pointer-events: auto;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.35);
+    }
+    #runBtn.pressed { background: #159447; transform: scale(0.94); box-shadow: 0 0 0 3px rgba(46,204,113,.25), 0 4px 14px rgba(0,0,0,.35); }
+    #resetBtn {
+      position: absolute;
+      right: 18px;
+      top: 8px;
+      padding: 7px 12px;
+      background: rgba(99,110,114,0.75);
+      border: 1px solid rgba(255,255,255,0.3);
+      border-radius: 8px;
+      color: #fff;
+      font-size: 12px;
+      pointer-events: auto;
+    }
+    .mini-btn {
+      position: absolute; top: 8px; padding: 7px 12px;
+      background: rgba(99,110,114,0.75); border: 1px solid rgba(255,255,255,0.3);
+      border-radius: 8px; color: #fff; font-size: 12px; pointer-events: auto;
+    }
+    #menuBtn { right: 104px; }
+    #placeBallBtn { right: 182px; }
+    #placeBallBtn.active { background: rgba(241,196,15,.95); color: #222; font-weight: 800; }
+    .btn-icon { font-size: 20px; line-height: 1; margin-bottom: 2px; }
+    .overlay {
+      position: fixed; inset: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: center;
+      background: radial-gradient(ellipse at center, rgba(28,72,43,.88), rgba(4,13,10,.97));
+      padding: 18px;
+    }
+    .panel {
+      width: min(440px, 94vw); max-height: 92vh; overflow: auto;
+      padding: 24px; border: 1px solid rgba(255,255,255,.25);
+      border-radius: 18px; background: rgba(8,20,17,.94);
+      box-shadow: 0 18px 60px rgba(0,0,0,.5); text-align: center;
+    }
+    .panel h1 { font-size: clamp(26px, 5vw, 42px); margin-bottom: 6px; letter-spacing: 2px; }
+    .panel p { color: #b9c9be; font-size: 13px; margin: 8px 0 18px; }
+    .menu-btn {
+      width: 100%; padding: 13px 16px; margin-top: 10px;
+      border: 1px solid rgba(255,255,255,.2); border-radius: 11px;
+      color: white; font-size: 16px; font-weight: 800; background: #23864a;
+      touch-action: manipulation;
+    }
+    .menu-btn.secondary { background: #263a32; }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; }
+    .row .menu-btn { flex: 1; min-width: 80px; }
+    .menu-btn.sel { outline: 3px solid #ffd32a; }
+    .menu-btn:disabled { opacity: .3; }
+    .setting-row { text-align: left; margin: 16px 0; color: #e8f0e9; font-size: 14px; }
+    .setting-row input { width: 100%; margin-top: 10px; accent-color: #42d879; }
+    .hidden { display: none !important; }
+    body.editing #controls { z-index: 110; }
+    body.editing #controls > * { outline: 2px dashed rgba(255,230,100,.9); touch-action: none; }
+    body.editing #optionsMenu { z-index: 120; pointer-events: none; align-items: flex-start; background: rgba(0,0,0,.25); }
+    body.editing #optionsMenu .panel { pointer-events: auto; margin-top: 8px; padding: 12px 16px; width: min(360px, 92vw); }
+    body.editing #optionsMenu .panel > *:not(#editHint):not(#finishEditBtn) { display: none; }
+    body.editing #editHint { margin-top: 0; }
+    #editHint { color: #ffeaa7; font-size: 12px; line-height: 1.4; margin-top: 12px; }
+    @media (orientation: landscape) {
+      .panel { padding: 16px 22px; }
+      .panel p { margin-bottom: 8px; }
+      .menu-btn { padding: 9px 14px; margin-top: 7px; }
+      .setting-row { margin: 10px 0; }
+    }
+    @media (orientation: landscape) {
+      #controls { height: 150px; }
+      #joystickZone, #joystickBase { width: 112px; height: 112px; }
+      #joystickZone { left: 12px; bottom: 10px; }
+      #joystickKnob { width: 48px; height: 48px; }
+      #runBtn { right: 168px; left: auto; bottom: 18px; width: 66px; height: 66px; }
+      .action-btn { width: 66px; height: 66px; font-size: 10px; }
+      #dribbleBtn { right: 92px; bottom: 18px; }
+      #shootBtn { right: 16px; bottom: 18px; }
+      .btn-icon { font-size: 17px; }
+      .scoreboard { font-size: 1.25rem; }
+      #status { font-size: 0.82rem; margin-top: 0; min-height: 18px; }
+      #bars { top: calc(env(safe-area-inset-top, 4px) + 48px); width: 142px; gap: 2px; }
+      .bar-bg { height: 5px; }
+      .bar-label { font-size: 0.55rem; width: 36px; }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas"></canvas>
+
+  <div id="hud">
+    <div class="scoreboard">
+      <span class="score-red">ROJO <span id="scoreRed">0</span></span>
+      <span class="vs">·</span>
+      <span class="score-blue"><span id="scoreBlue">0</span> AZUL</span>
+    </div>
+    <div id="status">¡Conduce y dispara hacia la portería!</div>
+  </div>
+
+  <div id="bars">
+    <div class="bar-row">
+      <span class="bar-label">Stamina</span>
+      <div class="bar-bg"><div class="bar-fill" id="staminaFill"></div></div>
+    </div>
+    <div class="bar-row">
+      <span class="bar-label">Regate</span>
+      <div class="bar-bg"><div class="bar-fill" id="dribbleFill"></div></div>
+    </div>
+    <div class="bar-row">
+      <span class="bar-label">Disparo</span>
+      <div class="bar-bg"><div class="bar-fill" id="shootFill"></div></div>
+    </div>
+  </div>
+
+  <div id="controls">
+    <div id="joystickZone">
+      <div id="joystickBase">
+        <div id="joystickKnob"></div>
+      </div>
+    </div>
+    <div class="action-btn" id="dribbleBtn">
+      <span class="btn-icon">⚽</span>
+      REGATE
+    </div>
+    <div class="action-btn" id="shootBtn">
+      <span class="btn-icon">💥</span>
+      DISPARO
+    </div>
+    <div id="runBtn"><span class="btn-icon">🏃</span>SPRINT</div>
+    <div id="resetBtn">Reiniciar</div>
+    <div id="menuBtn" class="mini-btn">☰ Menú</div>
+    <div id="placeBallBtn" class="mini-btn hidden">⚽ Poner balón</div>
+  </div>
+
+  <div id="mainMenu" class="overlay">
+    <div class="panel">
+      <h1>⚽ KickBall</h1>
+      <p>Entrena tus movimientos, regatea y dispara.</p>
+      <button class="menu-btn" id="playVsBtn">🤖 JUGAR VS IA</button>
+      <button class="menu-btn" id="teamsBtn">👥 EQUIPOS · FÚTBOL / FUTSAL</button>
+      <button class="menu-btn" id="trainBtn">🏋 ENTRENAMIENTO</button>
+      <button class="menu-btn secondary" id="optionsBtn">⚙ OPCIONES</button>
+      <button class="menu-btn secondary" id="exitBtn">✕ SALIR</button>
+    </div>
+  </div>
+  <div id="teamMenu" class="overlay hidden">
+    <div class="panel">
+      <h1>👥 EQUIPOS</h1>
+      <div class="row">
+        <button class="menu-btn sel" id="typeFootball">⚽ Fútbol</button>
+        <button class="menu-btn" id="typeFutsal">🥅 Futsal</button>
+      </div>
+      <p id="teamHint">Fútbol: campo grande, hasta 5 vs 5. Tú + compañeros IA contra rivales IA.</p>
+      <div class="row">
+        <button class="menu-btn" data-size="2">2 vs 2</button>
+        <button class="menu-btn" data-size="3">3 vs 3</button>
+        <button class="menu-btn" data-size="4">4 vs 4</button>
+        <button class="menu-btn" data-size="5">5 vs 5</button>
+      </div>
+      <button class="menu-btn secondary" id="teamBackBtn">← VOLVER</button>
+    </div>
+  </div>
+  <div id="optionsMenu" class="overlay hidden">
+    <div class="panel">
+      <h1>OPCIONES</h1>
+      <p>Personaliza los controles táctiles.</p>
+      <div class="setting-row">
+        Tamaño de botones: <strong id="buttonSizeLabel">100%</strong>
+        <input id="buttonSize" type="range" min="70" max="140" value="100">
+      </div>
+      <button class="menu-btn" id="editButtonsBtn">↔ MOVER BOTONES</button>
+      <div id="editHint" class="hidden">Arrastra los controles a donde quieras. Pulsa “Terminar movimiento” cuando acabes.</div>
+      <button class="menu-btn secondary hidden" id="finishEditBtn">✓ TERMINAR MOVIMIENTO</button>
+      <button class="menu-btn secondary" id="resetLayoutBtn">Restablecer controles</button>
+      <button class="menu-btn secondary" id="backMenuBtn">← VOLVER</button>
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // ===== Tamaño del campo (vertical, grande) =====
+    // Campo lógico alto para sensación de estadio real
+    let FIELD_W = 3780;
+    let FIELD_H = 2448;
+    let scale = 1;
+    let offsetX = 0, offsetY = 0;
+    let cameraX = 0, cameraY = 0;
+
+    function resize() {
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      canvas.width = vw * devicePixelRatio;
+      canvas.height = vh * devicePixelRatio;
+      canvas.style.width = vw + 'px';
+      canvas.style.height = vh + 'px';
+      ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+
+      // Cámara: el campo es más grande que la pantalla; se muestra una zona jugable.
+      // Zoom más abierto en horizontal para que se vea más campo y la portería cercana.
+      scale = Math.min(vw / (vw > vh ? 1900 : 900), (vh - 45) / (vw > vh ? 1050 : 1500));
+      offsetX = vw / 2 - FIELD_W * scale / 2;
+      offsetY = 0;
+      cameraX = 0;
+      cameraY = 0;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    // ===== Constantes físicas (velocidad ~50% de la original) =====
+    const PLAYER_RADIUS = 20;
+    const BALL_RADIUS = 11;
+    const FRICTION = 0.988;
+    const PLAYER_ACCEL = 0.145;      // era ~0.45
+    const MAX_PLAYER_SPEED = 2.36;   // era 7
+    const MAX_BALL_SPEED = 22.0;     // era ~12.6
+    const SHOOT_POWER_MAX = 9.5;    // potencia máxima de disparo
+    const DRIBBLE_POWER_MAX = 3.8;
+    const GOAL_DEPTH = 40;
+    let GOAL_WIDTH = 360;         // porterías más grandes (antes 264)
+    const TURN_ASSIST = 0.16;        // más alto = giros más rápidos
+    const TURN_SPEED_KEEP = 0.9;     // velocidad que conservas al girar
+    const STAMINA_MAX = 100;
+    const STAMINA_DRAIN = 0.085;
+    const STAMINA_REGEN = 0.13;
+
+    // ===== Estado =====
+    let scoreRed = 0;
+    let scoreBlue = 0;
+    let gameOver = false;
+    let gameStarted = false;
+    let celebration = 0;
+    let justScored = false;         // evita multi-gol
+    let scoreCooldown = 0;
+
+    const player = {
+      x: FIELD_W * 0.28,
+      y: FIELD_H / 2,
+      vx: 0, vy: 0,
+      radius: PLAYER_RADIUS,
+      color: '#ff4757',
+      stamina: STAMINA_MAX
+    };
+
+    const ball = {
+      x: FIELD_W / 2,
+      y: FIELD_H / 2,
+      vx: 0, vy: 0,
+      radius: BALL_RADIUS,
+      color: '#ffffff'
+    };
+
+    // ===== Modo de juego y IA rival (AZUL: ataca hacia la izquierda, defiende la portería derecha) =====
+    let gameMode = 'vs';              // 'vs' = contra la IA, 'training' = entrenamiento solo
+    let placingBall = false;          // entrenamiento: esperando que toques el campo para poner el balón
+    const ballSpot = { x: FIELD_W / 2, y: FIELD_H / 2 };   // dónde vuelve el balón en entrenamiento
+    const AI_DELAY = 3;                                      // reacción ~0,05 s
+    const AI_ACCEL = PLAYER_ACCEL * 1.0;
+    const AI_MAX_SPEED = MAX_PLAYER_SPEED * 1.0;
+    const bots = [];                                         // todos los jugadores controlados por IA
+    let humanSlot = { fx: 0.28, fy: 0.5 };                   // posición inicial del jugador humano
+    let matchSize = 1, matchFutsal = false;
+    const FORMATIONS = {   // fx = fracción desde la propia portería (0) hacia la rival (1); el humano ocupa el último hueco
+      1: [{fx:.28,fy:.5}],
+      2: [{fx:.1,fy:.5},{fx:.3,fy:.5}],
+      3: [{fx:.1,fy:.5},{fx:.27,fy:.75},{fx:.3,fy:.35}],
+      4: [{fx:.08,fy:.5},{fx:.2,fy:.22},{fx:.2,fy:.78},{fx:.34,fy:.5}],
+      5: [{fx:.08,fy:.5},{fx:.2,fy:.22},{fx:.2,fy:.78},{fx:.34,fy:.32},{fx:.34,fy:.68}]
+    };
+    function makeBot(team, home) {
+      return { team, home, x: 0, y: 0, vx: 0, vy: 0, radius: PLAYER_RADIUS,
+        color: team === 'blue' ? '#2e86de' : '#ff7f8c', stamina: STAMINA_MAX,
+        mode: 'defend', fooled: 0, fooledCd: 0, lungeCd: 0, shootCd: 0, lunging: 0, feint: 0, feintDir: 0, feintCd: 0,
+        passCd: 0, hold: 0, spot: null, spotT: 0, t: 0, lastCut: -99, cuts: [], commitX: 0, commitY: 0, pDirX: 0, pDirY: 0, aimOffset: 0, hist: [] };
+    }
+    function setupMatch(size, futsal) {
+      matchSize = size; matchFutsal = futsal;
+      FIELD_W = futsal ? 2600 : 3780; FIELD_H = futsal ? 1560 : 2448; GOAL_WIDTH = futsal ? 270 : 360;
+      bots.length = 0;
+      const f = FORMATIONS[Math.max(1, size)];
+      if (size > 0) {
+        f.forEach(h => bots.push(makeBot('blue', h)));
+        f.slice(0, -1).forEach(h => bots.push(makeBot('red', h)));
+        humanSlot = f[f.length - 1];
+      } else humanSlot = { fx: 0.28, fy: 0.5 };
+      ballSpot.x = FIELD_W / 2; ballSpot.y = FIELD_H / 2;
+      resize();
+    }
+
+    // Joystick
+    const joy = {
+      active: false,
+      dx: 0, dy: 0,     // -1..1
+      angle: 0,
+      magnitude: 0,
+      baseX: 0, baseY: 0,
+      knobEl: document.getElementById('joystickKnob'),
+      zone: document.getElementById('joystickZone')
+    };
+
+    // Acciones
+    let dribbleHeld = false;
+    let shootHeld = false;
+    let runHeld = false;
+    let smoothJoyX = 0, smoothJoyY = 0;
+    let dribbleCharge = 0;   // carga máxima en ~0,3 s
+    let shootCharge = 0;     // 0..1
+    let lastAimX = 1;
+    let lastAimY = 0;       // por defecto hacia arriba (portería rival)
+
+    // ===== Joystick =====
+    function setupJoystick() {
+      const zone = joy.zone, knob = joy.knobEl, maxDist = 48;
+      let activePointer = null;
+      function updateFromEvent(e) {
+        const rect = zone.getBoundingClientRect();
+        const x = e.clientX - rect.left - rect.width / 2;
+        const y = e.clientY - rect.top - rect.height / 2;
+        const dist = Math.hypot(x, y), clamped = Math.min(dist, maxDist);
+        const nx = dist > 0 ? x / dist : 0, ny = dist > 0 ? y / dist : 0;
+        joy.dx = nx * clamped / maxDist;
+        joy.dy = ny * clamped / maxDist;
+        joy.magnitude = clamped / maxDist;
+        joy.angle = Math.atan2(ny, nx);
+        if (joy.magnitude > 0.15) { lastAimX = nx; lastAimY = ny; }
+        knob.style.transform = `translate(calc(-50% + ${nx * clamped}px), calc(-50% + ${ny * clamped}px))`;
+        knob.classList.add('active');
+      }
+      function endJoy(e) {
+        if (activePointer !== null && e.pointerId !== activePointer) return;
+        activePointer = null; joy.active = false;
+        joy.dx = 0; joy.dy = 0; joy.magnitude = 0;
+        knob.style.transform = 'translate(-50%, -50%)';
+        knob.classList.remove('active');
+      }
+      zone.addEventListener('pointerdown', e => {
+        if (!gameStarted || editingControls) return;
+        e.preventDefault(); activePointer = e.pointerId; joy.active = true;
+        zone.setPointerCapture(e.pointerId); updateFromEvent(e);
+      });
+      zone.addEventListener('pointermove', e => {
+        if (!joy.active || e.pointerId !== activePointer) return;
+        e.preventDefault(); updateFromEvent(e);
+      });
+      zone.addEventListener('pointerup', endJoy);
+      zone.addEventListener('pointercancel', endJoy);
+      zone.addEventListener('lostpointercapture', endJoy);
+    }
+
+    // ===== Botones de acción =====
+    function setupButtons() {
+      const dBtn = document.getElementById('dribbleBtn');
+      const sBtn = document.getElementById('shootBtn');
+      function bindHold(btn, onDown, onUp) {
+        let pointer = null;
+        btn.addEventListener('pointerdown', e => {
+          if (!gameStarted || editingControls) return;
+          e.preventDefault(); e.stopPropagation();
+          if (pointer !== null) return;
+          pointer = e.pointerId;
+          btn.setPointerCapture(e.pointerId);
+          onDown();
+        });
+        const release = e => {
+          if (pointer === null || e.pointerId !== pointer) return;
+          e.preventDefault(); e.stopPropagation();
+          pointer = null; onUp();
+        };
+        btn.addEventListener('pointerup', release);
+        btn.addEventListener('pointercancel', release);
+        btn.addEventListener('lostpointercapture', release);
+      }
+      bindHold(dBtn, () => { dribbleHeld = true; dBtn.classList.add('pressed'); },
+        () => { dribbleHeld = false; dBtn.classList.remove('pressed'); applyDribble(); dribbleCharge = 0; });
+      bindHold(sBtn, () => {
+        shootHeld = true;
+        shootCharge = 0;
+        sBtn.classList.add('pressed');
+      }, () => {
+        shootHeld = false;
+        sBtn.classList.remove('pressed');
+        applyShoot();
+        shootCharge = 0;
+      });
+
+      const runBtn = document.getElementById('runBtn');
+      function toggleRun(e) {
+        if (!gameStarted || editingControls) return;
+        e.preventDefault(); e.stopPropagation();
+        runHeld = !runHeld;
+        runBtn.classList.toggle('pressed', runHeld);
+        runBtn.innerHTML = runHeld ? '<span class="btn-icon">🏃</span>SPRINT ON' : '<span class="btn-icon">🏃</span>SPRINT';
+      }
+      runBtn.addEventListener('pointerdown', toggleRun);
+      const reset = document.getElementById('resetBtn');
+      reset.addEventListener('pointerdown', e => { e.preventDefault(); resetGame(); });
+    }
+
+    function applyDribble() {
+      if (gameOver || justScored) return;
+      const d = distance(player, ball);
+      if (d > PLAYER_RADIUS + BALL_RADIUS + 30) return;
+      const power = 0.4 + dribbleCharge * DRIBBLE_POWER_MAX;
+      // dirección del joystick (o última dirección)
+      const ax = lastAimX;
+      const ay = lastAimY;
+      const len = Math.sqrt(ax * ax + ay * ay) || 1;
+      ball.vx += (ax / len) * power;
+      ball.vy += (ay / len) * power;
+      // un pequeño empujón al jugador también
+      player.vx += (ax / len) * power * 0.15;
+      player.vy += (ay / len) * power * 0.15;
+    }
+
+    function applyShoot() {
+      if (gameOver || justScored) return;
+      const d = distance(player, ball);
+      if (d > PLAYER_RADIUS + BALL_RADIUS + 46) return;   // más alcance para tirar de media vuelta
+      const power = 9.0 + shootCharge * 13.0;
+      const ax = lastAimX;
+      const ay = lastAimY;
+      const len = Math.sqrt(ax * ax + ay * ay) || 1;
+      // el balón va exactamente en la dirección que apunta el joystick
+      ball.vx = (ax / len) * power;
+      ball.vy = (ay / len) * power;
+      // pequeño retroceso
+      player.vx -= (ax / len) * power * 0.12;
+      player.vy -= (ay / len) * power * 0.12;
+    }
+
+    // ===== Utilidades =====
+    function distance(a, b) {
+      const dx = a.x - b.x;
+      const dy = a.y - b.y;
+      return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    function collideCircles(a, b) {
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const dist = Math.hypot(dx, dy), minDist = a.radius + b.radius;
+      if (dist >= minDist || dist <= 0) return false;
+      const nx = dx / dist, ny = dy / dist;
+      const overlap = minDist - dist;
+      a.x -= nx * overlap * 0.5; a.y -= ny * overlap * 0.5;
+      b.x += nx * overlap * 0.5; b.y += ny * overlap * 0.5;
+      const rel = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
+      if (rel < 0) {
+        const impulse = -rel * 0.82;
+        a.vx -= impulse * nx * 0.28; a.vy -= impulse * ny * 0.28;
+        b.vx += impulse * nx; b.vy += impulse * ny;
+      }
+      return true;
+    }
+
+    function resetPositions() {
+      player.x = FIELD_W * humanSlot.fx;
+      player.y = FIELD_H * humanSlot.fy;
+      cameraWorldX = player.x;
+      cameraWorldY = player.y;
+      player.vx = 0;
+      player.vy = 0;
+      ball.x = gameMode === 'training' ? ballSpot.x : FIELD_W / 2;
+      ball.y = gameMode === 'training' ? ballSpot.y : FIELD_H / 2;
+      botsReset();
+      ball.vx = 0;
+      ball.vy = 0;
+      celebration = 0;
+      justScored = false;
+      scoreCooldown = 0;
+      dribbleCharge = 0;
+      shootCharge = 0;
+    }
+
+    function resetGame() {
+      scoreRed = 0;
+      scoreBlue = 0;
+      gameOver = false;
+      document.getElementById('scoreRed').textContent = '0';
+      document.getElementById('scoreBlue').textContent = '0';
+      document.getElementById('status').textContent = '¡Conduce y dispara hacia la portería!';
+      player.stamina = STAMINA_MAX;
+      runHeld = false;
+      const runBtn = document.getElementById('runBtn'); if (runBtn) { runBtn.classList.remove('pressed'); runBtn.innerHTML = '<span class="btn-icon">🏃</span>SPRINT'; }
+      resetPositions();
+    }
+
+    // ===== IA rival =====
+    function botsReset() {
+      passInfo.t = 0;
+      for (const b of bots) {
+        const fx = b.team === 'blue' ? 1 - b.home.fx : b.home.fx;
+        b.x = FIELD_W * fx; b.y = FIELD_H * b.home.fy; b.vx = 0; b.vy = 0;
+        b.stamina = STAMINA_MAX; b.mode = 'defend';
+        b.fooled = 0; b.fooledCd = 0; b.lungeCd = 0; b.shootCd = 0; b.lunging = 0; b.feint = 0; b.feintCd = 0;
+        b.cuts = []; b.lastCut = -99; b.pDirX = 0; b.pDirY = 0; b.aimOffset = 0; b.hist = [];
+        b.passCd = 0; b.hold = 0; b.spot = null; b.spotT = 0;
+      }
+    }
+
+    function collidePlayers(a, b) {
+      const dx = b.x - a.x, dy = b.y - a.y, dist = Math.hypot(dx, dy), minD = a.radius + b.radius;
+      if (dist >= minD || dist <= 0) return;
+      const nx = dx / dist, ny = dy / dist, ov = minD - dist;
+      a.x -= nx * ov * 0.5; a.y -= ny * ov * 0.5; b.x += nx * ov * 0.5; b.y += ny * ov * 0.5;
+      const rel = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
+      if (rel < 0) { const j = -rel * 0.6; a.vx -= j * nx; a.vy -= j * ny; b.vx += j * nx; b.vy += j * ny; }
+    }
+
+    function aiKick(ai, ball, dirX, dirY, power) {
+      const len = Math.hypot(dirX, dirY) || 1;
+      ball.vx = dirX / len * power; ball.vy = dirY / len * power;
+      ai.vx -= dirX / len * power * 0.08; ai.vy -= dirY / len * power * 0.08;
+      ai.shootCd = 35;
+      ai.aimOffset = (Math.random() * 2 - 1) * GOAL_WIDTH * 0.1;
+    }
+
+    // Dónde estará el balón dentro de t frames (con fricción)
+    function predictBall(ball, t) {
+      const k = (1 - Math.pow(FRICTION, t)) / (1 - FRICTION);
+      return {
+        x: Math.max(12, Math.min(FIELD_W - 12, ball.x + ball.vx * k)),
+        y: Math.max(12, Math.min(FIELD_H - 12, ball.y + ball.vy * k))
+      };
+    }
+
+    // Punto de intercepción: primer punto de la trayectoria del balón al que la IA llega a tiempo
+    function aiIntercept(ai, ball) {
+      let p = predictBall(ball, 0), t;
+      for (t = 0; t <= 70; t += 5) {
+        p = predictBall(ball, t);
+        if (Math.hypot(p.x - ai.x, p.y - ai.y) / 3.3 <= t) break;
+      }
+      return { x: p.x, y: p.y, t };
+    }
+
+    // Despeje fuerte hacia la banda lejos del rival
+    function aiClear(ai, player, ball, power) {
+      const ty = player.y < FIELD_H / 2 ? FIELD_H * 0.85 : FIELD_H * 0.15;
+      let dx = FIELD_W * 0.15 - ball.x, dy = ty - ball.y;
+      const l = Math.hypot(dx, dy) || 1; dx /= l; dy /= l;
+      const bx = ball.x - ai.x, by = ball.y - ai.y, bl = Math.hypot(bx, by) || 1;
+      if (dx * bx / bl + dy * by / bl < 0.15) { dx += bx / bl * 1.2; dy += by / bl * 1.2; }
+      const err = (Math.random() - 0.5) * 0.15, c = Math.cos(err), s = Math.sin(err);
+      aiKick(ai, ball, dx * c - dy * s, dx * s + dy * c, power);
+    }
+
+    // Cerebro de la IA: predice el balón, intercepta, despeja, cierra el ángulo, contiene y roba,
+    // ataca esquivando al rival y apunta a la esquina más lejana de ti.
+    // Solo cae en recortes COMPLEJOS (2 cambios bruscos seguidos) y aun así sigue moviéndose.
+    function planAI(ai, player, ball) {
+      ai.t++;
+      ai.hist.push({ px: player.x, py: player.y, pvx: player.vx, pvy: player.vy });
+      if (ai.hist.length > AI_DELAY) ai.hist.shift();
+      const d0 = ai.hist[0];
+      if (ai.shootCd > 0) ai.shootCd--;
+      if (ai.fooled > 0) ai.fooled--;
+      if (ai.fooledCd > 0) ai.fooledCd--;
+      if (ai.lungeCd > 0) ai.lungeCd--;
+      if (ai.lunging > 0) ai.lunging--;
+      if (ai.feintCd > 0) ai.feintCd--;
+
+      const dAi = Math.hypot(ball.x - ai.x, ball.y - ai.y);
+      const dPl = Math.hypot(ball.x - player.x, ball.y - player.y);
+      const reach = PLAYER_RADIUS + BALL_RADIUS + 26;
+      const gTop = (FIELD_H - GOAL_WIDTH) / 2, gBottom = gTop + GOAL_WIDTH;
+      const ownGoalY = FIELD_H / 2;
+
+      // --- Detección de recortes complejos: hacen falta 2 giros bruscos seguidos ---
+      const pSp = Math.hypot(d0.pvx, d0.pvy);
+      if (pSp > 1.0) {
+        const ux = d0.pvx / pSp, uy = d0.pvy / pSp;
+        if (ai.pDirX === 0 && ai.pDirY === 0) { ai.pDirX = ux; ai.pDirY = uy; }
+        const dot = ux * ai.pDirX + uy * ai.pDirY;
+        if (dot < 0.35 && ai.t - ai.lastCut > 12) { ai.lastCut = ai.t; ai.cuts.push(ai.t); }
+        ai.pDirX += (ux - ai.pDirX) * 0.18; ai.pDirY += (uy - ai.pDirY) * 0.18;
+        const l = Math.hypot(ai.pDirX, ai.pDirY) || 1; ai.pDirX /= l; ai.pDirY /= l;
+      }
+      ai.cuts = ai.cuts.filter(c => ai.t - c < 70);
+      const dPA = Math.hypot(d0.px - ai.x, d0.py - ai.y);
+      if (ai.cuts.length >= 2 && dPA < 300 && dPl < 160 && ai.fooledCd <= 0) {
+        ai.fooled = 18 + Math.floor(Math.random() * 10);   // corto: no se queda pasmada
+        ai.fooledCd = 160;
+        ai.cuts = [];
+        ai.commitX = ai.pDirX; ai.commitY = ai.pDirY;
+      }
+
+      // --- Situación ---
+      const bi = aiIntercept(ai, ball);
+      const aiT = dAi / 3.3, plT = dPl / 3.4;
+      const possession = dPl < PLAYER_RADIUS + BALL_RADIUS + 22;
+      const pressure = Math.hypot(player.x - ai.x, player.y - ai.y) < 150;
+      const dangerZone = ball.x > FIELD_W * 0.62;
+
+      // ¿Va el balón hacia mi portería?
+      let shot = false;
+      if (ball.vx > 2.2 && ball.x > FIELD_W * 0.3) {
+        const tt = (FIELD_W - ball.x) / ball.vx;
+        const yy = ball.y + ball.vy * tt;
+        if (yy > gTop - 50 && yy < gBottom + 50) shot = true;
+      }
+
+      let tx, ty, sprint = false;
+      ai.mode = 'defend';
+
+      if (ai.fooled > 0) {
+        // Engañada: se pasa de largo corriendo hacia donde iba el rival, pero se mueve
+        tx = ai.x + ai.commitX * 250; ty = ai.y + ai.commitY * 250;
+      } else if (dAi <= reach && ai.shootCd <= 0 &&
+                 (shot || ball.x > FIELD_W - 260 || (dangerZone && (pressure || dPl < 140)))) {
+        // La reventa
+        aiClear(ai, player, ball, 17 + Math.random() * 5);
+        tx = ball.x; ty = ball.y;
+      } else if (shot) {
+        // Tapa el tiro: intercepta el balón antes de que llegue a la línea
+        tx = Math.min(bi.x, FIELD_W - 50); ty = bi.y; sprint = true;
+      } else if (possession) {
+        // Presión constante: nunca se queda parada. Va al balón, se cuela por el lado de su portería y entra a robar.
+        const bp2 = predictBall(ball, 8);
+        let vx = FIELD_W - bp2.x, vy = ownGoalY - bp2.y; const vl = Math.hypot(vx, vy) || 1; vx /= vl; vy /= vl;
+        const far = dAi > 130 ? 45 : 0;
+        tx = bp2.x + vx * far; ty = bp2.y + vy * far;
+        sprint = dAi > 80;
+        if (dAi <= reach + 6 && ai.lungeCd <= 0 && ai.shootCd <= 0) {   // entrada: roba y saca hacia su ataque
+          let gx = -ball.x, gy = ownGoalY - ball.y; const gl3 = Math.hypot(gx, gy) || 1;
+          aiKick(ai, ball, gx / gl3, gy / gl3, 9 + Math.random() * 3); ai.lungeCd = 45;
+        }
+      } else if (aiT <= plT + 8) {
+        // ATAQUE: gana el balón suelto, lo conduce esquivándote y dispara a la esquina lejana
+        ai.mode = 'attack';
+        const bs = Math.hypot(ball.vx, ball.vy);
+        const bp = bs > 2 ? predictBall(ball, Math.min(bi.t, 14)) : { x: ball.x, y: ball.y };
+        const awayY = player.y < FIELD_H / 2 ? 1 : -1;
+        const gy = FIELD_H / 2 + awayY * GOAL_WIDTH * 0.3 + ai.aimOffset;
+        let gdx = 0 - ball.x, gdy = gy - ball.y;
+        const gl = Math.hypot(gdx, gdy) || 1; gdx /= gl; gdy /= gl;
+        // Esquiva si estás en su camino
+        const prx = player.x - ball.x, pry = player.y - ball.y;
+        const along = prx * gdx + pry * gdy, side = prx * (-gdy) + pry * gdx;
+        const blocked = along > 0 && along < 420 && Math.abs(side) < 75 && gl > 500;
+        const hasBall = dAi < PLAYER_RADIUS + BALL_RADIUS + 40;
+        const pDist = Math.hypot(player.x - ai.x, player.y - ai.y);
+        // Camino libre: te dejó atrás (o estás lejos y fuera de su línea) -> contraataque a tope
+        const free = !blocked && (player.x > ai.x + 15 || pDist > 230);
+        const breakaway = hasBall && free;
+        // Regate: si le cierras el paso de cerca, finta hacia un lado y corta al otro
+        if (hasBall && ai.feint <= 0 && ai.feintCd <= 0 && along > 0 && along < 220 && Math.abs(side) < 110 && pDist < 200) {
+          ai.feint = 26; ai.feintDir = side >= 0 ? -1 : 1; ai.feintCd = 110;
+        }
+        let sdx = gdx, sdy = gdy;
+        if (ai.feint > 0) {
+          ai.feint--;
+          const rot = ai.feint > 13 ? ai.feintDir * 0.9 : -ai.feintDir * 0.7, c = Math.cos(rot), s = Math.sin(rot);
+          sdx = gdx * c - gdy * s; sdy = gdx * s + gdy * c;
+        } else if (blocked) {
+          const rot = side >= 0 ? -0.5 : 0.5, c = Math.cos(rot), s = Math.sin(rot);
+          sdx = gdx * c - gdy * s; sdy = gdx * s + gdy * c;
+        }
+        const rx = ai.x - ball.x, ry = ai.y - ball.y;
+        const behind = rx * sdx + ry * sdy;
+        const aligned = dAi > 0 ? -behind / dAi : 0;
+        if (ai.shootCd <= 0 && dAi <= reach && aligned > (breakaway ? 0.6 : 0.75) && !blocked && ai.feint <= 0 &&
+            (gl < (breakaway ? 1150 : 1000) || (pressure && gl < 1500))) {
+          const err = (Math.random() - 0.5) * 0.07, c = Math.cos(err), s2 = Math.sin(err);
+          aiKick(ai, ball, gdx * c - gdy * s2, gdx * s2 + gdy * c, 16 + Math.random() * 5);
+        }
+        if (behind > -14) {
+          const px = -sdy, py = sdx;
+          const sd = (rx * px + ry * py) >= 0 ? 1 : -1;
+          tx = bp.x - sdx * 55 + px * sd * 85; ty = bp.y - sdy * 55 + py * sd * 85;
+        } else {
+          tx = bp.x + sdx * 14; ty = bp.y + sdy * 14;
+        }
+        sprint = dAi > 150 || breakaway || ai.feint > 0;
+      } else {
+        // El rival llega antes: va a su encuentro y presiona en vez de esperar
+        const bp = predictBall(ball, 14);
+        let vx = FIELD_W - bp.x, vy = ownGoalY - bp.y; const vl = Math.hypot(vx, vy) || 1; vx /= vl; vy /= vl;
+        const gap = Math.min(110, Math.max(35, vl * 0.12));
+        tx = Math.min(bp.x + vx * gap, FIELD_W - 70); ty = bp.y + vy * gap;
+        sprint = Math.hypot(tx - ai.x, ty - ai.y) > 90;
+      }
+      return {
+        tx: Math.max(20, Math.min(FIELD_W - 20, tx)),
+        ty: Math.max(20, Math.min(FIELD_H - 20, ty)),
+        sprint
+      };
+    }
+
+    // Vista espejada: el equipo rojo ataca a la derecha, así que se le "da la vuelta" al campo
+    function viewOf(o, mir) {
+      if (!mir) return o;
+      return new Proxy(o, {
+        get(t, k) { return k === 'x' ? FIELD_W - t.x : k === 'vx' ? -t.vx : t[k]; },
+        set(t, k, v) { t[k] = (k === 'x') ? FIELD_W - v : (k === 'vx') ? -v : v; return true; }
+      });
+    }
+    // ===== IA de equipo: roles, pases, apoyo, marcaje y portero =====
+    let passInfo = { to: null, team: '', t: 0 };
+    const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+    const minOf = (arr, f) => arr.reduce((m, o) => Math.min(m, f(o)), 1e9);
+    const isKeeper = m => matchSize >= 3 && !!m.home && m.home.fx < 0.15;
+    function segDist(p, a, c) {   // distancia de p al segmento a-c (¿hay un rival en la línea de pase?)
+      const vx = c.x - a.x, vy = c.y - a.y, l2 = vx * vx + vy * vy || 1;
+      const t = clamp(((p.x - a.x) * vx + (p.y - a.y) * vy) / l2, 0, 1);
+      return Math.hypot(a.x + vx * t - p.x, a.y + vy * t - p.y);
+    }
+    // Pase: elige al compañero mejor colocado y libre, con pase adelantado a su carrera y potencia según la distancia
+    function aiPass(b, mates, opps, dir) {
+      if (b.passCd > 0) return false;
+      const gx = dir > 0 ? FIELD_W : 0, gc = { x: gx, y: FIELD_H / 2 };
+      if (!isKeeper(b) && Math.abs(gx - b.x) < 800 && minOf(opps, o => segDist(o, b, gc)) > 75) return false;   // tiro claro: dispara
+      const press = minOf(opps, o => Math.hypot(o.x - b.x, o.y - b.y)) < 210;
+      let best = null, bs = -1e9;
+      for (const m of mates) {
+        if (m === b || isKeeper(m)) continue;
+        const lead = { x: clamp(m.x + m.vx * 14, 40, FIELD_W - 40), y: clamp(m.y + m.vy * 14, 40, FIELD_H - 40) };
+        const d = Math.hypot(lead.x - b.x, lead.y - b.y);
+        if (d < 130 || d > 1150) continue;
+        const lane = minOf(opps, o => segDist(o, b, lead));
+        if (lane < 62) continue;
+        const open = minOf(opps, o => Math.hypot(o.x - lead.x, o.y - lead.y));
+        const sc = (lead.x - b.x) * dir * 0.55 + Math.min(open, 400) * 0.6 + Math.min(lane, 200) * 0.4 - d * 0.12 + (Math.abs(gx - lead.x) < 900 ? 120 : 0);
+        if (sc > bs) { bs = sc; best = { m, lead }; }
+      }
+      if (!best) return false;
+      const go = isKeeper(b) ? b.hold > 12 : press ? b.hold > 5 && bs > -90 : b.hold > 30 && bs > 170;
+      if (!go) return false;
+      const dx = best.lead.x - ball.x, dy = best.lead.y - ball.y;
+      const err = (Math.random() - 0.5) * 0.06, c = Math.cos(err), s = Math.sin(err);
+      aiKick(b, ball, dx * c - dy * s, dx * s + dy * c, Math.min(19, 4.5 + Math.hypot(dx, dy) * 0.012 + (press ? 1.5 : 0)));
+      b.passCd = 40; passInfo = { to: best.m, team: b.team, t: 90 };
+      return true;
+    }
+    // Apoyo: busca un hueco libre de rivales, con línea de pase limpia, adelantado y separado de sus compañeros
+    function aiSpot(b, ref, opps, mates, dir) {
+      if (b.spot && b.spotT-- > 0) return b.spot;
+      b.spotT = 16; let best = null, bs = -1e9;
+      for (const f of [-120, 220, 480, 760]) for (const sd of [-520, 0, 520]) {
+        const p = { x: clamp(ref.x + dir * f, 90, FIELD_W - 90), y: clamp(ref.y + sd + (b.home.fy - 0.5) * 300, 90, FIELD_H - 90) };
+        const open = minOf(opps, o => Math.hypot(o.x - p.x, o.y - p.y));
+        const lane = minOf(opps, o => segDist(o, ref, p));
+        const crowd = minOf(mates.filter(m => m !== b), m => { const q = m.spot || m; return Math.hypot(q.x - p.x, q.y - p.y); });
+        const sc = Math.min(open, 380) * 0.8 + Math.min(lane, 220) * 0.7 + f * 0.3 - (crowd < 260 ? 260 - crowd : 0) * 1.2 - Math.hypot(p.x - b.x, p.y - b.y) * 0.1;
+        if (sc > bs) { bs = sc; best = p; }
+      }
+      return (b.spot = best);
+    }
+    function botPlan(b) {
+      const red = b.team === 'red', dir = red ? 1 : -1, ownX = red ? 0 : FIELD_W;
+      const mates = bots.filter(o => o.team === b.team);
+      const allMates = red ? [player, ...mates] : mates;
+      const opps = red ? bots.filter(o => o.team === 'blue') : [player, ...bots.filter(o => o.team === 'red')];
+      const dB = o => Math.hypot(o.x - ball.x, o.y - ball.y);
+      const db = dB(b);
+      if (b.passCd > 0) b.passCd--;
+      let holder = null, hd = PLAYER_RADIUS + BALL_RADIUS + 24;
+      for (const o of [player, ...bots]) { const d = dB(o); if (d < hd) { hd = d; holder = o; } }
+      b.hold = holder === b ? b.hold + 1 : 0;
+      const teamHas = holder ? allMates.includes(holder) : (passInfo.t > 0 && passInfo.team === b.team);
+      const oppHas = !!holder && opps.includes(holder);
+      const keeper = isKeeper(b);
+      const ranked = mates.filter(m => !isKeeper(m)).sort((p, q) => dB(p) - dB(q));
+      const humanLeads = red && dB(player) < db - 120;
+      const pressers = humanLeads ? [] : ranked.slice(0, 2);
+      const keeperBusy = keeper && Math.abs(ball.x - ownX) < FIELD_W * 0.22 && db < 500;
+      const chaser = keeperBusy || (!keeper && pressers[0] === b);
+      const to = (x, y, sprint) => ({ tx: clamp(x, 60, FIELD_W - 60), ty: clamp(y, 60, FIELD_H - 60), sprint });
+
+      if (holder === b && aiPass(b, allMates, opps, dir)) return to(ball.x + dir * 250, ball.y, true);
+      if (chaser || holder === b) {
+        let opp = opps[0]; for (const o of opps) if (dB(o) < dB(opp)) opp = o;
+        const p = planAI(viewOf(b, red), viewOf(opp, red), viewOf(ball, red));
+        return { tx: red ? FIELD_W - p.tx : p.tx, ty: p.ty, sprint: p.sprint };
+      }
+      // Receptor: corre a interceptar el pase
+      if (passInfo.t > 0 && passInfo.to === b) { const q = aiIntercept(b, ball); return to(q.x, q.y, true); }
+      // Portero: se coloca en la línea balón-portería y lee los tiros
+      if (keeper) {
+        const gTop = (FIELD_H - GOAL_WIDTH) / 2;
+        let ty = ball.y;
+        if (ball.vx * dir < -2) ty = ball.y + ball.vy * Math.abs(ownX - ball.x) / Math.abs(ball.vx);
+        return to(ownX + dir * clamp(70 + Math.abs(ball.x - ownX) * 0.04, 70, 150), clamp(ty, gTop - 20, gTop + GOAL_WIDTH + 20), Math.abs(ty - b.y) > 50);
+      }
+      // Mi equipo tiene el balón: desmarque y apoyo
+      if (teamHas) {
+        const sp = aiSpot(b, holder || ball, opps, allMates, dir);
+        return to(sp.x, sp.y, Math.hypot(sp.x - b.x, sp.y - b.y) > 160);
+      }
+      // Defensa: doble marca al portador y marcaje al hombre del resto, por el lado de su portería
+      if (oppHas) {
+        if (pressers[1] === b) {
+          let vx = ownX - holder.x, vy = FIELD_H / 2 - holder.y; const l = Math.hypot(vx, vy) || 1, sd = b.y >= holder.y ? 1 : -1;
+          return to(holder.x + vx / l * 120 - vy / l * sd * 70, holder.y + vy / l * 120 + vx / l * sd * 70, true);
+        }
+        const defs = ranked.filter(m => !pressers.includes(m));
+        const danger = opps.filter(o => o !== holder && !isKeeper(o)).sort((p, q) => Math.abs(p.x - ownX) - Math.abs(q.x - ownX));
+        const mk = danger[defs.indexOf(b)];
+        if (mk) {
+          let vx = ownX - mk.x, vy = FIELD_H / 2 - mk.y; const l = Math.hypot(vx, vy) || 1;
+          const mx = mk.x + vx / l * 85 + (ball.x - mk.x) * 0.12, my = mk.y + vy / l * 85 + (ball.y - mk.y) * 0.12;
+          return to(mx, my, Math.hypot(mx - b.x, my - b.y) > 200);
+        }
+      }
+      // Balón suelto: el segundo más cercano cubre al primero
+      if (!holder && pressers[1] === b) { const q = predictBall(ball, 25); return to(q.x, q.y, true); }
+      const k = 0.15 + b.home.fx;
+      const hx = ownX + dir * FIELD_W * b.home.fx + (ball.x - FIELD_W / 2) * k, hy = FIELD_H * b.home.fy + (ball.y - FIELD_H / 2) * 0.45;
+      return to(hx, hy, Math.hypot(hx - b.x, hy - b.y) > 260);
+    }
+
+    function stepBot(ai) {
+      if (justScored || gameOver) {
+        ai.vx *= 0.9; ai.vy *= 0.9; ai.x += ai.vx; ai.y += ai.vy;
+        return;
+      }
+      const plan = botPlan(ai);
+      let dx = plan.tx - ai.x, dy = plan.ty - ai.y;
+      const dist = Math.hypot(dx, dy);
+      const moving = dist > 6;
+      const sprinting = plan.sprint && ai.stamina > 8 && moving;
+      if (moving) {
+        const mag = Math.min(1, dist / 30);
+        dx /= dist; dy /= dist;
+        const spd = Math.hypot(ai.vx, ai.vy);
+        if (spd > 0.05) {
+          const align = (ai.vx * dx + ai.vy * dy) / spd;
+          if (align < 0.97) {      // gira peor que tú: por eso cae en los recortes
+            const k = TURN_ASSIST * 0.55 * (1 + (1 - align) * 0.6) * Math.max(0.5, mag);
+            const keep = spd * TURN_SPEED_KEEP;
+            ai.vx += (dx * keep - ai.vx) * k; ai.vy += (dy * keep - ai.vy) * k;
+          }
+        }
+        const f = (sprinting ? 2.7 : 1) * (ai.fooled > 0 ? 0.8 : 1);
+        ai.vx += dx * AI_ACCEL * f * mag; ai.vy += dy * AI_ACCEL * f * mag;
+        if (sprinting) ai.stamina = Math.max(0, ai.stamina - STAMINA_DRAIN * 1.45 * mag);
+        else ai.stamina = Math.min(STAMINA_MAX, ai.stamina + STAMINA_REGEN);
+        if (dist < 70 && !plan.sprint) { ai.vx *= 0.95; ai.vy *= 0.95; }
+      } else {
+        ai.stamina = Math.min(STAMINA_MAX, ai.stamina + STAMINA_REGEN);
+        ai.vx *= 0.9; ai.vy *= 0.9;
+      }
+      ai.vx *= FRICTION; ai.vy *= FRICTION;
+      const lim = AI_MAX_SPEED * (sprinting ? 1.8 : 1);
+      const sp = Math.hypot(ai.vx, ai.vy);
+      if (sp > lim) { ai.vx = ai.vx / sp * lim; ai.vy = ai.vy / sp * lim; }
+      ai.x += ai.vx; ai.y += ai.vy;
+
+      collideCircles(ai, ball);
+      if (moving) {                       // toque natural, igual que el jugador
+        const bx = ball.x - ai.x, by = ball.y - ai.y, d = Math.hypot(bx, by);
+        if (d < PLAYER_RADIUS + BALL_RADIUS + 5 && d > 0.01) {
+          const nx = bx / d, ny = by / d;
+          const forward = Math.max(0, ai.vx * nx + ai.vy * ny);
+          const touch = 0.035 + Math.min(0.20, forward * 0.10);
+          ball.vx += nx * touch + ai.vx * 0.055; ball.vy += ny * touch + ai.vy * 0.055;
+        }
+      }
+      if (ai.x - ai.radius < 0) { ai.x = ai.radius; ai.vx *= -0.4; }
+      if (ai.x + ai.radius > FIELD_W) { ai.x = FIELD_W - ai.radius; ai.vx *= -0.4; }
+      if (ai.y - ai.radius < 0) { ai.y = ai.radius; ai.vy *= -0.4; }
+      if (ai.y + ai.radius > FIELD_H) { ai.y = FIELD_H - ai.radius; ai.vy *= -0.4; }
+    }
+
+    // Tras un gol: en entrenamiento solo vuelve el balón a su sitio; contra la IA se recoloca todo
+    function afterGoal() {
+      if (gameMode === 'training') {
+        ball.x = ballSpot.x; ball.y = ballSpot.y; ball.vx = 0; ball.vy = 0;
+        celebration = 0; justScored = false; scoreCooldown = 0;
+        document.getElementById('status').textContent = 'Entrenamiento libre · usa “Poner balón” para colocarlo';
+      } else resetPositions();
+    }
+
+    // ===== Update =====
+    function update() {
+      if (!gameStarted || gameOver) return;
+
+      if (scoreCooldown > 0) scoreCooldown--;
+
+      // Carga de potencias
+      if (dribbleHeld) {
+        dribbleCharge = Math.min(1, dribbleCharge + 1 / 18);
+      }
+
+
+      // Movimiento del jugador (joystick)
+      let ax = joy.dx;
+      let ay = joy.dy;
+      const moving = joy.magnitude > 0.12;
+
+      if (moving) {
+        const len = Math.sqrt(ax * ax + ay * ay) || 1;
+        ax /= len;
+        ay /= len;
+        const sprinting = runHeld && player.stamina > 0;
+        const staminaFactor = sprinting ? 2.7 : 1;
+        // Giro ágil: si cambias de dirección, la velocidad se reorienta rápido hacia donde apuntas
+        const curSpeed = Math.hypot(player.vx, player.vy);
+        if (curSpeed > 0.05) {
+          const align = (player.vx * ax + player.vy * ay) / curSpeed; // 1 = misma dirección, -1 = media vuelta
+          if (align < 0.97) {
+            const k = TURN_ASSIST * (1 + (1 - align) * 0.6) * Math.max(0.5, joy.magnitude);
+            const keep = curSpeed * TURN_SPEED_KEEP;
+            player.vx += (ax * keep - player.vx) * k;
+            player.vy += (ay * keep - player.vy) * k;
+          }
+        }
+        player.vx += ax * PLAYER_ACCEL * staminaFactor;
+        player.vy += ay * PLAYER_ACCEL * staminaFactor;
+        if (sprinting) player.stamina = Math.max(0, player.stamina - STAMINA_DRAIN * 1.45 * joy.magnitude);
+        else player.stamina = Math.min(STAMINA_MAX, player.stamina + STAMINA_REGEN);
+      } else {
+        player.stamina = Math.min(STAMINA_MAX, player.stamina + STAMINA_REGEN);
+      }
+
+      // Física
+      player.vx *= FRICTION;
+      player.vy *= FRICTION;
+      ball.vx *= FRICTION;
+      ball.vy *= FRICTION;
+
+      // Limitar velocidad
+      const pSpeed = Math.sqrt(player.vx * player.vx + player.vy * player.vy);
+      const playerSpeedLimit = MAX_PLAYER_SPEED * ((runHeld && player.stamina > 0 && moving) ? 1.9 : 1);
+      if (pSpeed > playerSpeedLimit) {
+        player.vx = (player.vx / pSpeed) * playerSpeedLimit;
+        player.vy = (player.vy / pSpeed) * playerSpeedLimit;
+      }
+      const bSpeed = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
+      if (bSpeed > MAX_BALL_SPEED) {
+        ball.vx = (ball.vx / bSpeed) * MAX_BALL_SPEED;
+        ball.vy = (ball.vy / bSpeed) * MAX_BALL_SPEED;
+      }
+
+      player.x += player.vx;
+      player.y += player.vy;
+      ball.x += ball.vx;
+      ball.y += ball.vy;
+
+      // Colisión jugador-balón (siempre, para que se sienta el contacto)
+      collideCircles(player, ball);
+
+      // Control natural: al caminar hacia el balón lo empuja sin necesitar REGATE.
+      if (!justScored) {
+        const dx = ball.x - player.x, dy = ball.y - player.y;
+        const d = Math.sqrt(dx * dx + dy * dy);
+        if (d < PLAYER_RADIUS + BALL_RADIUS + 5 && d > 0.01 && moving) {
+          const nx = dx / d, ny = dy / d;
+          const forward = Math.max(0, player.vx * nx + player.vy * ny);
+          const touch = 0.035 + Math.min(0.20, forward * 0.10);
+          ball.vx += nx * touch + player.vx * 0.055;
+          ball.vy += ny * touch + player.vy * 0.055;
+          player.vx *= 0.995; player.vy *= 0.995;
+        }
+      }
+
+      if (gameMode === 'vs') {
+        if (passInfo.t > 0) passInfo.t--;
+        for (const b of bots) stepBot(b);
+        const all = [player, ...bots];
+        for (let i = 0; i < all.length; i++) for (let j = i + 1; j < all.length; j++) collidePlayers(all[i], all[j]);
+      }
+
+      // Al girar con el balón cerca, éste te acompaña en vez de salir despedido
+      if (moving && !justScored && !shootHeld) {
+        const dx = ball.x - player.x, dy = ball.y - player.y;
+        const d = Math.hypot(dx, dy);
+        const pSp = Math.hypot(player.vx, player.vy);
+        if (d < PLAYER_RADIUS + BALL_RADIUS + 16 && pSp > 0.05) {
+          const align = (player.vx * joy.dx + player.vy * joy.dy) / (pSp * (joy.magnitude || 1));
+          if (align < 0.8) {
+            const glue = 0.10 + (1 - align) * 0.05;
+            ball.vx += (player.vx - ball.vx) * glue;
+            ball.vy += (player.vy - ball.vy) * glue;
+          }
+        }
+      }
+
+      // Mientras se mantiene REGATE cerca del balón → “pegar” el balón un poco
+      if (dribbleHeld && !justScored) {
+        const d = distance(player, ball);
+        if (d < PLAYER_RADIUS + BALL_RADIUS + 20) {
+          // suavemente acerca el balón hacia la dirección de movimiento
+          const pull = 0.08 + dribbleCharge * 0.12;
+          ball.vx += (player.vx - ball.vx) * pull;
+          ball.vy += (player.vy - ball.vy) * pull;
+          // pequeño offset hacia delante
+          if (joy.magnitude > 0.1) {
+            ball.x += joy.dx * 1.1;
+            ball.y += joy.dy * 1.1;
+          }
+        }
+      }
+
+      // Paredes laterales (izquierda / derecha)
+      if (player.x - player.radius < 0) { player.x = player.radius; player.vx *= -0.4; }
+      if (player.x + player.radius > FIELD_W) { player.x = FIELD_W - player.radius; player.vx *= -0.4; }
+      if (player.y - player.radius < 0) { player.y = player.radius; player.vy *= -0.4; }
+      if (player.y + player.radius > FIELD_H) { player.y = FIELD_H - player.radius; player.vy *= -0.4; }
+
+      // Porterías a izquierda y derecha: ROJO ataca hacia la derecha.
+      const goalTop = (FIELD_H - GOAL_WIDTH) / 2;
+      const goalBottom = goalTop + GOAL_WIDTH;
+      if (!justScored && scoreCooldown <= 0 && ball.x + ball.radius > FIELD_W) {
+        if (ball.y > goalTop && ball.y < goalBottom) {
+          scoreRed++;
+          document.getElementById('scoreRed').textContent = scoreRed;
+          document.getElementById('status').textContent = (gameMode === 'vs' ? '¡GOL del ROJO!' : '¡GOL! (puerta derecha)');
+          celebration = 70; justScored = true; scoreCooldown = 90; player.stamina = STAMINA_MAX; bots.forEach(b => b.stamina = STAMINA_MAX);
+          if (gameMode === 'vs' && scoreRed >= 3) { gameOver = true; document.getElementById('status').textContent = '¡ROJO GANA! Toca Reiniciar'; }
+          else setTimeout(afterGoal, 900);
+        } else { ball.x = FIELD_W - ball.radius; ball.vx *= -0.65; }
+      }
+      if (!justScored && scoreCooldown <= 0 && ball.x - ball.radius < 0) {
+        if (ball.y > goalTop && ball.y < goalBottom) {
+          scoreBlue++;
+          document.getElementById('scoreBlue').textContent = scoreBlue;
+          document.getElementById('status').textContent = (gameMode === 'vs' ? '¡GOL del AZUL!' : '¡GOL! (puerta izquierda)');
+          celebration = 70; justScored = true; scoreCooldown = 90; player.stamina = STAMINA_MAX; bots.forEach(b => b.stamina = STAMINA_MAX);
+          if (gameMode === 'vs' && scoreBlue >= 3) { gameOver = true; document.getElementById('status').textContent = '¡AZUL GANA! Toca Reiniciar'; }
+          else setTimeout(afterGoal, 900);
+        } else { ball.x = ball.radius; ball.vx *= -0.65; }
+      }
+      if (ball.y - ball.radius < 0) { ball.y = ball.radius; ball.vy *= -0.7; }
+      if (ball.y + ball.radius > FIELD_H) { ball.y = FIELD_H - ball.radius; ball.vy *= -0.7; }
+
+      if (celebration > 0) celebration--;
+
+      // La carga de disparo llega al máximo en unos 0,75 segundos.
+      if (shootHeld) shootCharge = Math.min(1, shootCharge + 1 / 45);
+
+      // Actualizar barras HUD
+      document.getElementById('staminaFill').style.width = (player.stamina / STAMINA_MAX * 100) + '%';
+      document.getElementById('dribbleFill').style.width = (dribbleCharge * 100) + '%';
+      document.getElementById('shootFill').style.width = (shootCharge * 100) + '%';
+    }
+
+    // ===== Dibujo =====
+    function worldToScreen(x, y) {
+      const camera = getCamera();
+      return {
+        x: window.innerWidth / 2 + (x * scale - camera.x),
+        y: window.innerHeight * 0.52 + (y * scale - camera.y)
+      };
+    }
+
+    function drawField() {
+      ctx.fillStyle = '#1e8449';
+      ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
+      const camera = getCamera();
+      for (let x = 0; x < FIELD_W; x += 180) {
+        const sx = window.innerWidth / 2 + (x * scale - camera.x);
+        ctx.fillStyle = 'rgba(255,255,255,0.035)';
+        ctx.fillRect(sx, 0, 90 * scale, window.innerHeight);
+      }
+      ctx.save();
+      ctx.translate(window.innerWidth / 2 - camera.x, window.innerHeight * 0.52 - camera.y);
+      ctx.scale(scale, scale);
+      ctx.strokeStyle = 'rgba(255,255,255,0.82)';
+      ctx.lineWidth = 2.2 / scale;
+      // Perímetro y línea de medio campo
+      ctx.strokeRect(2, 2, FIELD_W - 4, FIELD_H - 4);
+      ctx.beginPath(); ctx.moveTo(FIELD_W / 2, 0); ctx.lineTo(FIELD_W / 2, FIELD_H); ctx.stroke();
+      // Círculo y punto central
+      ctx.beginPath(); ctx.arc(FIELD_W / 2, FIELD_H / 2, 330, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(FIELD_W / 2, FIELD_H / 2, 6, 0, Math.PI * 2); ctx.fillStyle = '#fff'; ctx.fill();
+      // Dimensiones aproximadas reglamentarias a escala 24 unidades por metro
+      const areaDepth = 594, areaHeight = 1450;
+      const smallDepth = 198, smallHeight = 792;
+      const topArea = (FIELD_H - areaHeight) / 2, topSmall = (FIELD_H - smallHeight) / 2;
+      ctx.strokeRect(0, topArea, areaDepth, areaHeight);
+      ctx.strokeRect(FIELD_W - areaDepth, topArea, areaDepth, areaHeight);
+      ctx.strokeRect(0, topSmall, smallDepth, smallHeight);
+      ctx.strokeRect(FIELD_W - smallDepth, topSmall, smallDepth, smallHeight);
+      // Puntos de penal y arcos de penalti
+      const penX = 396, cy = FIELD_H / 2, arcR = 330;
+      ctx.beginPath();
+      ctx.arc(penX, cy, 6, 0, Math.PI * 2);
+      ctx.arc(FIELD_W - penX, cy, 6, 0, Math.PI * 2);
+      ctx.fill();
+      // Arcos de penalti: dibujar solo la parte que queda fuera del área.
+      ctx.save();
+      ctx.beginPath(); ctx.rect(areaDepth, 0, FIELD_W - 2 * areaDepth, FIELD_H); ctx.clip();
+      const arcHalf = Math.acos((areaDepth - penX) / arcR);
+      ctx.beginPath(); ctx.arc(penX, cy, arcR, -arcHalf, arcHalf); ctx.stroke();
+      ctx.beginPath(); ctx.arc(FIELD_W - penX, cy, arcR, Math.PI - arcHalf, Math.PI + arcHalf); ctx.stroke();
+      ctx.restore();
+      // Cuartos de círculo de esquina
+      [[0,0,0,Math.PI/2],[FIELD_W,0,Math.PI/2,Math.PI],[0,FIELD_H,-Math.PI/2,0],[FIELD_W,FIELD_H,Math.PI,Math.PI*1.5]].forEach(c => {
+        ctx.beginPath(); ctx.arc(c[0], c[1], 36, c[2], c[3]); ctx.stroke();
+      });
+      // Porterías en los extremos cortos
+      const gY = (FIELD_H - GOAL_WIDTH) / 2;
+      ctx.fillStyle = 'rgba(0,0,0,0.25)';
+      ctx.fillRect(-GOAL_DEPTH, gY, GOAL_DEPTH, GOAL_WIDTH);
+      ctx.fillRect(FIELD_W, gY, GOAL_DEPTH, GOAL_WIDTH);
+      ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+      ctx.lineWidth = 4 / scale;
+      ctx.strokeRect(-GOAL_DEPTH, gY, GOAL_DEPTH, GOAL_WIDTH);
+      ctx.strokeRect(FIELD_W, gY, GOAL_DEPTH, GOAL_WIDTH);
+      ctx.restore();
+    }
+    let cameraWorldX = FIELD_W * 0.28;
+    let cameraWorldY = FIELD_H / 2;
+    function getCamera() {
+      // Seguimiento continuo: la cámara acompaña al jugador y no se queda clavada.
+      const vw = window.innerWidth, vh = window.innerHeight;
+      const visibleW = vw / scale, visibleH = vh / scale;
+      // Deja al jugador un poco a la izquierda para mostrar más campo por delante.
+      const targetX = player.x + visibleW * 0.08;
+      const targetY = player.y;
+      // Deja margen exterior para que la portería completa quede dentro de pantalla.
+      const goalMargin = GOAL_DEPTH + 115;
+      const minX = visibleW / 2 - goalMargin;
+      const maxX = Math.max(minX, FIELD_W - visibleW / 2 + goalMargin);
+      const minY = visibleH / 2;
+      const maxY = Math.max(minY, FIELD_H - visibleH / 2);
+      const clampedX = Math.max(minX, Math.min(maxX, targetX));
+      const clampedY = Math.max(minY, Math.min(maxY, targetY));
+      cameraWorldX += (clampedX - cameraWorldX) * 0.12;
+      cameraWorldY += (clampedY - cameraWorldY) * 0.12;
+      return { x: cameraWorldX * scale, y: cameraWorldY * scale };
+    }
+
+    function drawCircle(obj, withShadow = true) {
+      const s = worldToScreen(obj.x, obj.y);
+      const r = obj.radius * scale;
+
+      if (withShadow) {
+        ctx.beginPath();
+        ctx.arc(s.x + 2.5, s.y + 2.5, r, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(0,0,0,0.3)';
+        ctx.fill();
+      }
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, r, 0, Math.PI * 2);
+      ctx.fillStyle = obj.color;
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.45)';
+      ctx.lineWidth = 1.8;
+      ctx.stroke();
+    }
+
+    function drawAimIndicator() {
+      if (joy.magnitude < 0.15 && !dribbleHeld && !shootHeld) return;
+      const s = worldToScreen(player.x, player.y);
+      const len = 55 * scale;
+      const ax = lastAimX;
+      const ay = lastAimY;
+      ctx.beginPath();
+      ctx.moveTo(s.x, s.y);
+      ctx.lineTo(s.x + ax * len, s.y + ay * len);
+      ctx.strokeStyle = shootHeld ? 'rgba(231,76,60,0.7)' : 'rgba(241,196,15,0.65)';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      // punta
+      ctx.beginPath();
+      ctx.arc(s.x + ax * len, s.y + ay * len, 4, 0, Math.PI * 2);
+      ctx.fillStyle = shootHeld ? '#e74c3c' : '#f1c40f';
+      ctx.fill();
+    }
+
+    function draw() {
+      // fondo fuera del campo
+      ctx.fillStyle = '#0d1b0d';
+      ctx.fillRect(0, 0, canvas.width / devicePixelRatio, canvas.height / devicePixelRatio);
+
+      drawField();
+
+      if (celebration > 0) {
+        ctx.fillStyle = `rgba(255,230,80,${celebration / 140})`;
+        ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
+      }
+
+      if (gameMode === 'vs') bots.forEach(b => drawCircle(b));
+      drawCircle(player);
+      drawCircle(ball);
+      drawAimIndicator();
+
+      // Indicador de contacto cerca del balón
+      if (dribbleHeld || shootHeld) {
+        const d = distance(player, ball);
+        if (d < PLAYER_RADIUS + BALL_RADIUS + 30) {
+          const s = worldToScreen(player.x, player.y);
+          ctx.beginPath();
+          ctx.arc(s.x, s.y, (PLAYER_RADIUS + 10) * scale, 0, Math.PI * 2);
+          ctx.strokeStyle = shootHeld ? 'rgba(231,76,60,0.55)' : 'rgba(241,196,15,0.55)';
+          ctx.lineWidth = 3;
+          ctx.stroke();
+        }
+      }
+    }
+
+    function loop() {
+      update();
+      draw();
+      requestAnimationFrame(loop);
+    }
+
+    // Menús y personalización de controles
+    const mainMenu = document.getElementById('mainMenu');
+    const optionsMenu = document.getElementById('optionsMenu');
+    const buttonSize = document.getElementById('buttonSize');
+    const buttonSizeLabel = document.getElementById('buttonSizeLabel');
+    const controlEls = [...document.querySelectorAll('#joystickZone, #dribbleBtn, #shootBtn, #runBtn')];
+    const placeBallBtn = document.getElementById('placeBallBtn');
+    let editingControls = false;
+    let layoutBeforeEdit = null;
+
+    function startGame(mode, size, futsal) {
+      gameMode = mode || 'vs';
+      setupMatch(gameMode === 'training' ? 0 : (size || 1), !!futsal);
+      gameStarted = true;
+      mainMenu.classList.add('hidden');
+      optionsMenu.classList.add('hidden');
+      document.getElementById('hud').classList.remove('hidden');
+      document.getElementById('bars').classList.remove('hidden');
+      document.getElementById('controls').classList.remove('hidden');
+      placingBall = false;
+      placeBallBtn.classList.remove('active');
+      placeBallBtn.classList.toggle('hidden', gameMode !== 'training');
+      resetGame();
+      document.getElementById('status').textContent = gameMode === 'training'
+        ? 'Entrenamiento libre · usa “Poner balón” para colocarlo'
+        : '¡Conduce y dispara hacia la portería!';
+    }
+    function showMenu() {
+      gameStarted = false; placingBall = false;
+      placeBallBtn.classList.remove('active');
+      mainMenu.classList.remove('hidden');
+      optionsMenu.classList.add('hidden');
+    }
+    function openOptions() {
+      mainMenu.classList.add('hidden');
+      optionsMenu.classList.remove('hidden');
+      // Mostrar los controles detrás del panel para poder colocarlos y ajustar su tamaño.
+      document.getElementById('controls').classList.remove('hidden');
+    }
+    function finishEditing() {
+      editingControls = false;
+      document.body.classList.remove('editing');
+      document.getElementById('editHint').classList.add('hidden');
+      document.getElementById('finishEditBtn').classList.add('hidden');
+      document.getElementById('editButtonsBtn').classList.remove('hidden');
+    }
+    function resetControlLayout() {
+      controlEls.forEach(el => { el.style.left = ''; el.style.top = ''; el.style.right = ''; el.style.bottom = ''; el.style.transform = ''; });
+      buttonSize.value = '100';
+      applyButtonSize();
+    }
+    function applyButtonSize() {
+      const factor = Number(buttonSize.value) / 100;
+      buttonSizeLabel.textContent = buttonSize.value + '%';
+      controlEls.forEach(el => {
+        if (el.id === 'joystickZone') {
+          el.style.width = (window.innerWidth > window.innerHeight ? 112 : 140) * factor + 'px';
+          el.style.height = (window.innerWidth > window.innerHeight ? 112 : 140) * factor + 'px';
+          const base = document.getElementById('joystickBase');
+          base.style.width = (window.innerWidth > window.innerHeight ? 112 : 140) * factor + 'px';
+          base.style.height = (window.innerWidth > window.innerHeight ? 112 : 140) * factor + 'px';
+          document.getElementById('joystickKnob').style.width = (window.innerWidth > window.innerHeight ? 48 : 58) * factor + 'px';
+          document.getElementById('joystickKnob').style.height = (window.innerWidth > window.innerHeight ? 48 : 58) * factor + 'px';
+        } else {
+          el.style.width = (el.id === 'runBtn' ? 66 : 66) * factor + 'px';
+          el.style.height = (el.id === 'runBtn' ? 66 : 66) * factor + 'px';
+        }
+      });
+    }
+    controlEls.forEach(el => {
+      let drag = null;
+      el.addEventListener('pointerdown', e => {
+        if (!editingControls) return;
+        e.preventDefault(); e.stopPropagation();
+        const r = el.getBoundingClientRect();
+        const c = el.parentElement.getBoundingClientRect();
+        drag = { x: e.clientX, y: e.clientY, left: r.left, top: r.top, ox: c.left, oy: c.top };
+        el.setPointerCapture(e.pointerId);
+      });
+      el.addEventListener('pointermove', e => {
+        if (!editingControls || !drag) return;
+        e.preventDefault();
+        const x = Math.max(0, Math.min(window.innerWidth - el.offsetWidth, drag.left + e.clientX - drag.x));
+        const y = Math.max(0, Math.min(window.innerHeight - el.offsetHeight, drag.top + e.clientY - drag.y));
+        el.style.left = (x - drag.ox) + 'px'; el.style.top = (y - drag.oy) + 'px'; el.style.right = 'auto'; el.style.bottom = 'auto';
+      });
+      const stopDrag = () => { drag = null; };
+      el.addEventListener('pointerup', stopDrag);
+      el.addEventListener('pointercancel', stopDrag);
+    });
+    document.getElementById('playVsBtn').addEventListener('click', () => startGame('vs', 1, false));
+    document.getElementById('trainBtn').addEventListener('click', () => startGame('training'));
+    // Menú de equipos: Fútbol (2-5) o Futsal (2-3, campo y portería más pequeños)
+    let teamFutsal = false;
+    const teamMenu = document.getElementById('teamMenu');
+    function refreshTeamMenu() {
+      document.getElementById('typeFootball').classList.toggle('sel', !teamFutsal);
+      document.getElementById('typeFutsal').classList.toggle('sel', teamFutsal);
+      teamMenu.querySelectorAll('[data-size]').forEach(btn => { btn.disabled = teamFutsal && +btn.dataset.size > 3; });
+      document.getElementById('teamHint').textContent = teamFutsal
+        ? 'Futsal: campo y porterías más pequeños, máximo 3 vs 3.'
+        : 'Fútbol: campo grande, hasta 5 vs 5. Tú + compañeros IA contra rivales IA.';
+    }
+    document.getElementById('teamsBtn').addEventListener('click', () => { mainMenu.classList.add('hidden'); teamMenu.classList.remove('hidden'); refreshTeamMenu(); });
+    document.getElementById('typeFootball').addEventListener('click', () => { teamFutsal = false; refreshTeamMenu(); });
+    document.getElementById('typeFutsal').addEventListener('click', () => { teamFutsal = true; refreshTeamMenu(); });
+    document.getElementById('teamBackBtn').addEventListener('click', () => { teamMenu.classList.add('hidden'); mainMenu.classList.remove('hidden'); });
+    teamMenu.querySelectorAll('[data-size]').forEach(btn => btn.addEventListener('click', () => {
+      teamMenu.classList.add('hidden'); startGame('vs', +btn.dataset.size, teamFutsal);
+    }));
+    document.getElementById('menuBtn').addEventListener('pointerdown', e => { e.preventDefault(); if (!editingControls) showMenu(); });
+    placeBallBtn.addEventListener('pointerdown', e => {
+      e.preventDefault(); e.stopPropagation();
+      if (!gameStarted || editingControls || gameMode !== 'training') return;
+      placingBall = !placingBall;
+      placeBallBtn.classList.toggle('active', placingBall);
+      document.getElementById('status').textContent = placingBall
+        ? 'Toca el campo donde quieras el balón'
+        : 'Entrenamiento libre · usa “Poner balón” para colocarlo';
+    });
+    // Poner el balón tocando el campo (convierte pantalla → coordenadas del campo)
+    canvas.addEventListener('pointerdown', e => {
+      if (!placingBall || !gameStarted || gameMode !== 'training') return;
+      e.preventDefault();
+      const wx = (e.clientX - window.innerWidth / 2) / scale + cameraWorldX;
+      const wy = (e.clientY - window.innerHeight * 0.52) / scale + cameraWorldY;
+      ballSpot.x = Math.max(BALL_RADIUS + 6, Math.min(FIELD_W - BALL_RADIUS - 6, wx));
+      ballSpot.y = Math.max(BALL_RADIUS + 6, Math.min(FIELD_H - BALL_RADIUS - 6, wy));
+      ball.x = ballSpot.x; ball.y = ballSpot.y; ball.vx = 0; ball.vy = 0;
+      placingBall = false;
+      placeBallBtn.classList.remove('active');
+      document.getElementById('status').textContent = 'Entrenamiento libre · usa “Poner balón” para colocarlo';
+    });
+    document.getElementById('optionsBtn').addEventListener('click', openOptions);
+    document.getElementById('backMenuBtn').addEventListener('click', () => {
+      finishEditing(); optionsMenu.classList.add('hidden'); mainMenu.classList.remove('hidden');
+      if (!gameStarted) document.getElementById('controls').classList.add('hidden');
+    });
+    document.getElementById('exitBtn').addEventListener('click', () => {
+      // Los navegadores móviles suelen bloquear el cierre de pestañas; regresar al menú es el respaldo.
+      gameStarted = false;
+      mainMenu.classList.remove('hidden');
+      optionsMenu.classList.add('hidden');
+    });
+    document.getElementById('editButtonsBtn').addEventListener('click', () => {
+      editingControls = true;
+      document.body.classList.add('editing');
+      document.getElementById('editHint').classList.remove('hidden');
+      document.getElementById('finishEditBtn').classList.remove('hidden');
+      document.getElementById('editButtonsBtn').classList.add('hidden');
+    });
+    document.getElementById('finishEditBtn').addEventListener('click', finishEditing);
+    document.getElementById('resetLayoutBtn').addEventListener('click', resetControlLayout);
+    buttonSize.addEventListener('input', applyButtonSize);
+
+    // Init
+    setupJoystick();
+    setupButtons();
+    resetPositions();
+    document.getElementById('hud').classList.add('hidden');
+    document.getElementById('bars').classList.add('hidden');
+    document.getElementById('controls').classList.add('hidden');
+    loop();
+
+    // Evitar scroll / gestos del navegador
+    document.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
+  </script>
+</body>
+</html>
